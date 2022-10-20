@@ -392,6 +392,8 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
         return 0
 
     def father_patcher_abc_extract_mop(self,target_instruction):
+        cnst = None
+        compare_mop = None
         if target_instruction.opcode == m_sub:
             if target_instruction.l.t == 2:
                 cnst = target_instruction.l.signed_value()
@@ -416,18 +418,33 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
         cnst = None
         instruction_opcode = None
         opcodes_interested_in = [m_add,m_sub,m_or,m_xor,m_xdu,m_high]
-        if target_instruction.d.r != jtbl_r:
-            return cnst,compare_mop_left,compare_mop_right,instruction_opcode
+        # if target_instruction.d.r != jtbl_r:
+        # return cnst,compare_mop_left,compare_mop_right,instruction_opcode
         if target_instruction.opcode in opcodes_interested_in:
             trgt_opcode = target_instruction.opcode
             #check add or sub
             if trgt_opcode == m_xdu:
                 if target_instruction.l.t == mop_d:
-                    sub_instruction = target_instruction.l.d
-                    cnst,compare_mop_left = self.father_patcher_abc_extract_mop(sub_instruction)
-                    compare_mop_right = mop_t()
-                    compare_mop_right.make_number(0,4,target_instruction.ea)
-                    instruction_opcode = trgt_opcode
+                    if target_instruction.l.d.opcode == m_high:
+                        high_i = target_instruction.l.d
+                        if high_i.l.t == mop_d:
+                            sub_instruction = high_i.l.d
+                            if sub_instruction.opcode == m_sub:
+                                if sub_instruction.l.t == mop_d:
+                                    compare_mop_right = mop_t(sub_instruction.r)
+                                    sub_sub_instruction = sub_instruction.l.d
+                                    if sub_sub_instruction.opcode == m_or:
+                                        if sub_sub_instruction.r.t == 2:
+                                            cnst = sub_sub_instruction.r.signed_value()
+                                            cnst = cnst >> 32
+                                            compare_mop_left = mop_t(sub_sub_instruction.l)
+                                            instruction_opcode = m_sub
+                    else:
+                        sub_instruction = target_instruction.l.d
+                        cnst,compare_mop_left = self.father_patcher_abc_extract_mop(sub_instruction)
+                        compare_mop_right = mop_t()
+                        compare_mop_right.make_number(0,4,target_instruction.ea)
+                        instruction_opcode = trgt_opcode
                 else:
                     return cnst,compare_mop_left,compare_mop_right,instruction_opcode
             elif trgt_opcode == m_high:
@@ -594,7 +611,7 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
                                         dispatcher_entry_block: GenericDispatcherBlockInfo) -> List[MopHistory]:
         # father can have instructions that we are not interested in but need to copy and remove from generated childs.
         curr_inst = dispatcher_father.head
-        jtbl_r = dispatcher_entry_block.blk.head.l.r
+        jtbl_r = dispatcher_entry_block.blk.tail.l.r
         while curr_inst:
             cnst,compare_mop_left,compare_mop_right,instruction_opcode = self.father_patcher_abc_check_instruction(curr_inst,jtbl_r)
             l = [cnst,compare_mop_left,compare_mop_right,instruction_opcode]
@@ -602,6 +619,36 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
                 self.father_patcher_abc_create_blocks(dispatcher_father,curr_inst,cnst,compare_mop_left,compare_mop_right,instruction_opcode,dispatcher_entry_block)
                 break
             curr_inst = curr_inst.next
+    def dispatcher_fixer_abc(self,dispatcher_list):
+        return
+        for dispatcher in dispatcher_list:
+            if dispatcher.entry_block.tail.opcode == m_jtbl:
+                # check jtbl have 3 case where one is default to itsel
+                jtbl_minst = dispatcher.entry_block.tail
+                #jtbl left is mop_d -> minst
+                if jtbl_minst.l.t == mop_d:
+                    # jtbl left is m_sub
+                    # jtbl   (#0xF6BBE.4-xdu.4((rax17.8 == #0.8))), {0xF6BBB => 22, 0xF6BBD => 19, 0xF6BBE => 20, def => 18}
+                    if jtbl_minst.l.d.opcode == m_sub:
+                        sub_minst = jtbl_minst.l.d
+                        #sub left is constant
+                        if sub_minst.l.t == 2:
+                            cnst = jtbl_minst.l.signed_value()
+                            compare_mop = mop_t(jtbl_minst.r)
+                    # jtbl left is m_xdu
+                    # jtbl   xdu.4((rax17.4{26} == varD8.4)), {-2,1 => 22, 0 => 21, def => 20}
+                    if jtbl_minst.l.d.opcode == m_xdu:
+                        sub_minst = jtbl_minst.l.d
+                        #sub left is constant
+                        if sub_minst.l.t == 2:
+                            cnst = jtbl_minst.l.signed_value()
+                            compare_mop = mop_t(jtbl_minst.r)
+                            # remove jtbl
+                            # create jz with compare mop
+                            # get 2 case from jtbl cases
+                            # create 2 block with goto to jtbl case
+
+
 
     def resolve_dispatcher_father(self, dispatcher_father: mblock_t, dispatcher_info: GenericDispatcherInfo) -> int:
         dispatcher_father_histories = self.get_dispatcher_father_histories(dispatcher_father,
@@ -700,6 +747,7 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
             unflat_logger.info("Unflattening: {0} dispatcher(s) found".format(len(self.dispatcher_list)))
             for dispatcher_info in self.dispatcher_list:
                 dispatcher_info.print_info()
+            self.dispatcher_fixer_abc(self.dispatcher_list)
             self.last_pass_nb_patch_done = self.remove_flattening()
         unflat_logger.info("Unflattening at maturity {0} pass {1}: {2} changes"
                            .format(self.cur_maturity, self.cur_maturity_pass, self.last_pass_nb_patch_done))
