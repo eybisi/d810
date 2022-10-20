@@ -42,6 +42,7 @@ class D810Plugin(idaapi.plugin_t):
 
         configure_loggers(real_log_dir)
         self.state = D810State(self.d810_config)
+        breakpoint()
         print("D-810 reloading...")
         self.state.start_plugin()
         self.initialized = True

@@ -50,8 +50,8 @@ class TigressSwitchDispatcherInfo(GenericDispatcherInfo):
 class TigressSwitchDispatcherCollector(GenericDispatcherCollector):
     DISPATCHER_CLASS = TigressSwitchDispatcherInfo
     DEFAULT_DISPATCHER_MIN_INTERNAL_BLOCK = 0
-    DEFAULT_DISPATCHER_MIN_EXIT_BLOCK = 4
-    DEFAULT_DISPATCHER_MIN_COMPARISON_VALUE = 4
+    DEFAULT_DISPATCHER_MIN_EXIT_BLOCK = 2
+    DEFAULT_DISPATCHER_MIN_COMPARISON_VALUE = 2
 
 
 class UnflattenerSwitchCase(GenericDispatcherUnflatteningRule):

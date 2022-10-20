@@ -217,7 +217,7 @@ class MicroCodeInterpreter(object):
             left_value = self.eval(ins.l, environment)
             cases = ins.r.c
             # Initialize to default case
-            next_blk_serial = [x for x in cases.targets][-1]
+            next_blk_serial = [x for x in cases.targets][-1]            
             for possible_values, target_block_serial in zip(cases.values, cases.targets):
                 for test_value in possible_values:
                     if left_value == test_value:
