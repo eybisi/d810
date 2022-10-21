@@ -59,4 +59,4 @@ class UnflattenerSwitchCase(GenericDispatcherUnflatteningRule):
     DISPATCHER_COLLECTOR_CLASS = TigressSwitchDispatcherCollector
     DEFAULT_UNFLATTENING_MATURITIES = [MMAT_GLBOPT1]
     DEFAULT_MAX_DUPLICATION_PASSES = 20
-    DEFAULT_MAX_PASSES = 5
+    DEFAULT_MAX_PASSES = 7
