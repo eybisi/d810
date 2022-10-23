@@ -411,9 +411,10 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
             if target_instruction.r.t == 2:
                 cnst = target_instruction.r.signed_value()
                 compare_mop = mop_t(target_instruction.l)
-        return cnst,compare_mop
+        return cnst,compare_mop,target_instruction.opcode
 
     def father_patcher_abc_check_instruction(self,target_instruction)->bool:
+        #TODO reimplement here
         compare_mop_left = None
         compare_mop_right = None
         cnst = None
@@ -440,9 +441,17 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
                                             cnst = cnst >> 32
                                             compare_mop_left = mop_t(sub_sub_instruction.l)
                                             instruction_opcode = m_sub
+                                elif sub_instruction.l.t == mop_n:
+                                    #9. 0 high   (#0xF6A120000005F.8-xdu.8(ebx.4)), ecx.4{11} 
+                                    compare_mop_right = mop_t(sub_instruction.r)
+                                    cnst = sub_instruction.l.signed_value()
+                                    cnst = cnst >> 32
+                                    compare_mop_left = mop_t()
+                                    compare_mop_left.make_number(sub_instruction.l.signed_value()&0xffffffff,8,target_instruction.ea)
+                                    instruction_opcode = m_sub
                     else:
                         sub_instruction = target_instruction.l.d
-                        cnst,compare_mop_left = self.father_patcher_abc_extract_mop(sub_instruction)
+                        cnst,compare_mop_left,trgt_opcode = self.father_patcher_abc_extract_mop(sub_instruction)
                         compare_mop_right = mop_t()
                         compare_mop_right.make_number(0,4,target_instruction.ea)
                         instruction_opcode = trgt_opcode
@@ -472,7 +481,7 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
                         else:
                             pass
             else:
-                cnst,compare_mop_left = self.father_patcher_abc_extract_mop(target_instruction)
+                cnst,compare_mop_left,trgt_opcode = self.father_patcher_abc_extract_mop(target_instruction)
                 compare_mop_right = mop_t()
                 compare_mop_right.make_number(0,4,target_instruction.ea)
                 instruction_opcode = trgt_opcode
