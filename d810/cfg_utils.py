@@ -320,9 +320,15 @@ def insert_nop_blk(blk: mblock_t) -> mblock_t:
     mba = blk.mba
     nop_block = mba.copy_block(blk, blk.serial + 1)
     cur_ins = nop_block.head
-    while cur_ins is not None:
-        nop_block.make_nop(cur_ins)
-        cur_ins = cur_ins.next
+    if cur_ins == None:
+        cur_inst = minsn_t(blk.start)
+        cur_inst.opcode = m_nop
+        nop_block.insert_into_block(cur_inst,nop_block.head)
+    else:
+        while cur_ins is not None:
+            nop_block.make_nop(cur_ins)
+            cur_ins = cur_ins.next
+    
 
 
     nop_block.type = BLT_1WAY
