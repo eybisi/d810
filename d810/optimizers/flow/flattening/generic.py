@@ -742,7 +742,12 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
                 unflat_logger.info("Instruction copied: {0}: {1}"
                                    .format(len(ins_to_copy),
                                            ", ".join([format_minsn_t(ins_copied) for ins_copied in ins_to_copy])))
-                dispatcher_side_effect_blk = create_block(self.mba.get_mblock(self.mba.qty - 2), ins_to_copy,
+                tail_serial = self.mba.qty-1
+                block_to_copy = self.mba.get_mblock(tail_serial) 
+                while block_to_copy.type == BLT_XTRN or block_to_copy.type == BLT_STOP:
+                    block_to_copy = self.mba.get_mblock(tail_serial)
+                    tail_serial -= 1
+                dispatcher_side_effect_blk = create_block(block_to_copy, ins_to_copy,
                                                           is_0_way=(target_blk.type == BLT_0WAY))
                 change_1way_block_successor(dispatcher_father, dispatcher_side_effect_blk.serial)
                 change_1way_block_successor(dispatcher_side_effect_blk, target_blk.serial)
@@ -759,31 +764,40 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
             for block in father_history.block_path:
                 total_n += self.father_history_patcher_abc(block)
         return total_n
+    
+    def find_bad_while_loops(self,blk):
+        # find from mov x,eax
+        if blk.tail.opcode == m_mov and blk.tail.l.t == mop_n:
+            left_cnst = blk.tail.l.signed_value()
+            if left_cnst > 0xf6000 and left_cnst < 0xf6fff:
+                if blk.next.opcode == m_jz and blk.next.tail.r.t == mop_n:
+                    jz0_cnst = blk.next.tail.r.signed_value()
+                    if blk.next.next.opcode == m_jz and blk.next.next.tail.r.t == mop_n:
+                        jz1_cnst = blk.next.ntext.tail.r.signed_value()
+                        if jz1_cnst > 0xf6000 and jz1_cnst < 0xf6fff and jz0_cnst > 0xf6000 and jz0_cnst < 0xf6fff:
+                            print('whoo found it')
+                            
+                            
+
 
 
     def remove_flattening(self) -> int:
         total_nb_change = 0
         breakpoint()
         self.non_significant_changes = ensure_last_block_is_goto(self.mba)
-        self.non_significant_changes += self.ensure_all_dispatcher_fathers_are_direct()          
+        self.non_significant_changes += self.ensure_all_dispatcher_fathers_are_direct()
+         
+
         for dispatcher_info in self.dispatcher_list:
-            dump_microcode_for_debug(self.mba, self.log_dir, "unflat_{0}_dispatcher_{1}_before_duplication"
+            dump_microcode_for_debug(self.mba, self.log_dir, "unflat_{0}_dispatcher_{1}_after_fix_abc_before_duplication"
                                      .format(self.cur_maturity_pass, dispatcher_info.entry_block.serial))
             unflat_logger.info("Searching dispatcher for entry block {0} {1} ->  with variables ({2})..."
                                .format(dispatcher_info.entry_block.serial, format_mop_t(dispatcher_info.mop_compared),
                                        format_mop_list(dispatcher_info.entry_block.use_before_def_list)))
-            tmp_dispatcher_father_list = [self.mba.get_mblock(x) for x in dispatcher_info.entry_block.blk.predset]
             #editing dispatcher fathers:
             # for dispatcher_father in tmp_dispatcher_father_list:
             # self.father_patcher_abc(dispatcher_father,dispatcher_info.entry_block)
-            dispatcher_father_list = [self.mba.get_mblock(x) for x in dispatcher_info.entry_block.blk.predset]
-            total_fixed_father_block = 0
-            for dispatcher_father in dispatcher_father_list:
-                try:
-                    total_fixed_father_block += self.fix_fathers_from_mop_history(dispatcher_father,dispatcher_info.entry_block)
-                except Exception as e:
-                    print(e) 
-            unflat_logger.info(f"Fixed {total_fixed_father_block} instructions in father history")            
+
             #redine dispatcher father since we changed entry block succ/pred sets
             dispatcher_father_list = [self.mba.get_mblock(x) for x in dispatcher_info.entry_block.blk.predset]
             for dispatcher_father in dispatcher_father_list:
@@ -825,9 +839,19 @@ class GenericDispatcherUnflatteningRule(GenericUnflatteningRule):
             return 0
         else:
             unflat_logger.info("Unflattening: {0} dispatcher(s) found".format(len(self.dispatcher_list)))
-            self.dispatcher_fixer_abc(self.dispatcher_list)
+            # self.dispatcher_fixer_abc(self.dispatcher_list)
             for dispatcher_info in self.dispatcher_list:
                 dispatcher_info.print_info()
+                dispatcher_father_list = [self.mba.get_mblock(x) for x in dispatcher_info.entry_block.blk.predset]
+                total_fixed_father_block = 0
+                dump_microcode_for_debug(self.mba, self.log_dir, "unflat_{0}_dispatcher_{1}_before_fix_abc"
+                                            .format(self.cur_maturity_pass, dispatcher_info.entry_block.serial))
+                for dispatcher_father in dispatcher_father_list:
+                    try:
+                        total_fixed_father_block += self.fix_fathers_from_mop_history(dispatcher_father,dispatcher_info.entry_block)
+                    except Exception as e:
+                        print(e)
+                unflat_logger.info(f"Fixed {total_fixed_father_block} instructions in father history") 
             self.last_pass_nb_patch_done = self.remove_flattening()
         unflat_logger.info("Unflattening at maturity {0} pass {1}: {2} changes"
                            .format(self.cur_maturity, self.cur_maturity_pass, self.last_pass_nb_patch_done))

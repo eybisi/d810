@@ -72,7 +72,7 @@ def change_1way_call_block_successor(call_blk: mblock_t, call_blk_successor_seri
 
 
 def change_1way_block_successor(blk: mblock_t, blk_successor_serial: int) -> bool:
-    if blk.nsucc() != 1:
+    if blk.nsucc() != 1 or blk.serial == 0:
         return False
 
     mba: mbl_array_t = blk.mba
@@ -323,7 +323,8 @@ def insert_nop_blk(blk: mblock_t) -> mblock_t:
     while cur_ins is not None:
         nop_block.make_nop(cur_ins)
         cur_ins = cur_ins.next
-    
+
+
     nop_block.type = BLT_1WAY
 
     # We might have clone a block with multiple or no successor, thus we need to clean all
